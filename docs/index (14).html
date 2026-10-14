@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open Patent Defense AI: prior-art evidence workbench</title>
+<meta name="description" content="A free webpage for organizing prior art: find leads, fingerprint your files, and build claim charts where every citation is human-verified. Runs in your browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>§</text></svg>">
+<style>
+:root{--paper:#F4F6F8;--card:#fff;--ink:#16202B;--muted:#55616F;--rule:#CBD3DC;--ok:#0B6B4F;--okbg:#E1F2EB;--warn:#9A5B00;--warnbg:#FBEBCF;--link:#1F3FBF;
+--serif:Georgia,"Times New Roman",serif;--sans:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,Menlo,Consolas,monospace}
+@media(prefers-color-scheme:dark){:root{--paper:#10161D;--card:#18212B;--ink:#E8EDF2;--muted:#98A5B3;--rule:#2C3947;--ok:#5FD0A6;--okbg:#12372B;--warn:#F0B35A;--warnbg:#3A2A10;--link:#8FA6FF}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 1.02rem/1.6 var(--serif);padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+a{color:var(--link)}
+:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+.w{max-width:960px;margin:0 auto;padding:0 20px}
+h1{font:600 clamp(1.8rem,4.5vw,2.8rem)/1.1 var(--serif);letter-spacing:-.015em;margin:36px 0 12px;max-width:20ch}
+h2{font:600 1.3rem var(--serif);margin:0 0 8px}
+p{margin:0 0 .9em;max-width:64ch}.muted{color:var(--muted)}
+.notice{background:var(--warnbg);border-left:4px solid var(--warn);padding:12px 16px;border-radius:4px;font:.9rem/1.5 var(--sans);margin:18px 0}
+.tabs{display:flex;gap:4px;border-bottom:1.5px solid var(--ink);margin-top:24px;overflow-x:auto;font-family:var(--sans)}
+.tabs button{background:none;border:0;border-bottom:4px solid transparent;color:var(--muted);font:600 .95rem var(--sans);padding:10px 14px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
+.panel{padding:24px 0 48px;font-family:var(--sans);font-size:.95rem}
+.panel[hidden]{display:none}
+label{display:block;font-weight:600;font-size:.85rem;margin:0 0 4px}
+input,select,textarea{width:100%;font:inherit;font-size:.92rem;color:var(--ink);background:var(--card);border:1.5px solid var(--rule);border-radius:5px;padding:8px 10px}
+textarea{min-height:64px;resize:vertical}
+.row{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-bottom:12px}
+.btn{font:600 .9rem var(--sans);padding:8px 14px;border-radius:5px;border:1.5px solid var(--ink);background:none;color:var(--ink);cursor:pointer}
+.btn.p{background:var(--ink);color:var(--paper)}.btn.s{padding:4px 10px;font-size:.82rem}.btn.d{border-color:var(--rule);color:var(--muted)}
+.card{background:var(--card);border:1.5px solid var(--rule);border-radius:6px;padding:14px 16px;margin-bottom:12px}
+.lim{border-color:var(--ink)}
+.ev{border-left:4px solid var(--warn);background:var(--paper);border-radius:4px;padding:12px;margin-top:12px}.ev.v{border-left-color:var(--ok)}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font:600 .75rem var(--sans)}.tag.ok{background:var(--okbg);color:var(--ok)}.tag.w{background:var(--warnbg);color:var(--warn)}
+code,.mono{font:.8rem var(--mono);overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--rule);vertical-align:top}
+.scroll{overflow-x:auto}
+#msg{min-height:1.4em;font-weight:600;color:var(--warn);margin:8px 0}
+.drop{border:2px dashed var(--rule);border-radius:6px;padding:18px;margin-bottom:12px}
+footer{border-top:1px solid var(--rule);padding:24px 0 40px;color:var(--muted);font:.88rem var(--sans)}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>Prior-art evidence you can audit line by line.</h1>
+<p class="muted">Find leads, fingerprint your reference files, and build claim charts where every citation needs a page, an exact passage, and a human check. Everything runs in this page. Your files are never uploaded; only the search box contacts Crossref.</p>
+<p class="notice"><strong>Research aid, not legal advice.</strong> This page does not decide whether a patent is valid. A search result is a lead, not proof of prior art. Have qualified patent counsel review anything you rely on.</p>
+
+<div class="tabs" role="tablist" aria-label="Workbench">
+<button role="tab" aria-selected="true" data-t="search">1. Find leads</button>
+<button role="tab" aria-selected="false" data-t="evidence">2. Evidence files</button>
+<button role="tab" aria-selected="false" data-t="chart">3. Claim chart</button>
+<button role="tab" aria-selected="false" data-t="export">4. Export</button>
+</div>
+
+<section class="panel" id="p-search" role="tabpanel">
+<form id="sf"><div class="row"><div style="grid-column:span 2"><label for="q">Technical query</label><input id="q" placeholder="controlled release drug delivery polymer" required></div>
+<div><label for="rows">Results</label><select id="rows"><option>10</option><option>25</option><option>50</option></select></div></div>
+<button class="btn p">Search Crossref</button></form>
+<div id="sout" style="margin-top:16px"></div>
+</section>
+
+<section class="panel" id="p-evidence" role="tabpanel" hidden>
+<h2>Register files</h2>
+<p class="muted">Each file gets a SHA-256 fingerprint. The file itself stays on your computer; the browser stores only its name, size, fingerprint and the notes below.</p>
+<div class="drop"><div class="row"><div><label for="eurl">Source URL or DOI</label><input id="eurl"></div><div><label for="epub">Published date</label><input id="epub" type="date"></div><div><label for="enotes">Notes</label><input id="enotes"></div></div>
+<label for="efiles">Choose files</label><input id="efiles" type="file" multiple></div>
+<div id="eout"></div>
+<h2 style="margin-top:28px">Verify files</h2>
+<p class="muted">Browsers can't reopen files on their own. Select the files again and each one is compared against its recorded fingerprint.</p>
+<input id="vfiles" type="file" multiple style="margin-bottom:12px"><div id="vout"></div>
+<h2 style="margin-top:28px">Saved leads</h2><div id="lout"></div>
+</section>
+
+<section class="panel" id="p-chart" role="tabpanel" hidden>
+<div class="row"><div><label for="pat">Patent identifier</label><input id="pat" placeholder="US1234567B2"></div></div>
+<div id="msg" role="status"></div>
+<div id="cbox"></div>
+<button class="btn p" data-act="addLim">Add limitation</button>
+</section>
+
+<section class="panel" id="p-export" role="tabpanel" hidden>
+<p class="muted">Download your evidence ledger and claim chart as one JSON file, or copy it from the box.</p>
+<p><button class="btn p" id="dl">Download JSON</button> <button class="btn" id="cp">Copy</button> <button class="btn d" id="clr">Delete all data in this browser</button></p>
+<textarea id="xout" readonly style="min-height:320px;font-family:var(--mono);font-size:.8rem"></textarea>
+</section>
+</div>
+<footer><div class="w">Apache-2.0 licensed · <a href="https://github.com/trumedicines/open-patent-defense-ai">Source on GitHub</a> · Data is saved only in this browser.</div></footer>
+
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const KEY='opda-web-v1';let S={patent:'',files:[],leads:[],lims:[]};
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const msg=t=>{$('#msg').textContent=t||''};
+async function sha(f){const b=await crypto.subtle.digest('SHA-256',await f.arrayBuffer());return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+
+// tabs
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
+ document.querySelectorAll('.panel').forEach(p=>p.hidden=p.id!=='p-'+b.dataset.t);
+ if(b.dataset.t==='evidence')renderEv();if(b.dataset.t==='chart')renderChart();if(b.dataset.t==='export')renderX();});
+
+// search
+let R=[];const dateOf=i=>{for(const k of['issued','published','published-print','published-online','created']){const p=((i[k]||{})['date-parts']||[[]])[0];if(p&&p[0])return p.join('-')}return'unknown'};
+$('#sf').onsubmit=async e=>{e.preventDefault();const o=$('#sout');o.textContent='Searching…';
+ try{const r=await fetch('https://api.crossref.org/works?'+new URLSearchParams({'query.bibliographic':$('#q').value.trim(),rows:$('#rows').value,select:'DOI,title,author,published,issued,created,URL,type,container-title'}));
+ if(!r.ok)throw new Error('Crossref returned '+r.status);
+ R=(await r.json()).message.items.map(i=>({title:(i.title||[''])[0]||'(untitled)',doi:i.DOI||'',url:i.URL||'',date:dateOf(i),venue:(i['container-title']||[''])[0],authors:(i.author||[]).slice(0,4).map(a=>a.family).filter(Boolean).join(', ')}));
+ o.innerHTML=R.length?`<p class="muted">${R.length} metadata results. Open each original and confirm dates and disclosure before relying on it.</p>`+R.map((x,i)=>`<div class="card"><strong>${esc(x.title)}</strong><br><span class="muted">${esc(x.authors)} · ${esc(x.venue)} · ${esc(x.date)}</span><br><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.doi||x.url)}</a> <button class="btn s" data-lead="${i}">Save as lead</button></div>`).join(''):'<p>No results. Try fewer or different technical terms.</p>';
+ }catch(err){o.innerHTML=`<p class="notice">Search failed: ${esc(err.message)}. Check your connection and try again.</p>`}};
+$('#sout').onclick=e=>{const i=e.target.dataset.lead;if(i==null)return;const x=R[i];if(!S.leads.some(l=>l.doi&&l.doi===x.doi)){S.leads.push(x);save()}e.target.textContent='Saved';e.target.disabled=true};
+
+// evidence
+$('#efiles').onchange=async e=>{if(!crypto.subtle){alert('Hashing needs a secure (https) page.');return}
+ for(const f of e.target.files){S.files.push({id:uid('ev-'),name:f.name,size:f.size,sha256:await sha(f),source_url:$('#eurl').value||null,published_date:$('#epub').value||null,notes:$('#enotes').value||null,collected_at:new Date().toISOString()})}
+ e.target.value='';save();renderEv()};
+$('#vfiles').onchange=async e=>{const seen={};for(const f of e.target.files)seen[f.name]=await sha(f);
+ $('#vout').innerHTML='<table><tbody>'+S.files.map(x=>{const h=seen[x.name];const s=h===undefined?['not provided','w']:h===x.sha256?['unchanged','ok']:['CHANGED','w'];return`<tr><td>${esc(x.name)}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`}).join('')+'</tbody></table>';e.target.value=''};
+function renderEv(){$('#eout').innerHTML=S.files.length?`<div class="scroll"><table><thead><tr><th>File</th><th>SHA-256</th><th>Source</th><th></th></tr></thead><tbody>`+S.files.map((x,i)=>`<tr><td>${esc(x.name)}<br><span class="muted">${(x.size/1024).toFixed(1)} KB · ${esc(x.published_date||'no date')}</span></td><td><code>${x.sha256}</code></td><td>${esc(x.source_url||'-')}</td><td><button class="btn s d" data-delf="${i}">Remove</button></td></tr>`).join('')+'</tbody></table></div>':'<p class="muted">No files registered yet.</p>';
+ $('#lout').innerHTML=S.leads.length?S.leads.map((x,i)=>`<div class="card">${esc(x.title)} <span class="muted">(${esc(x.date)})</span> <a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.doi||'link')}</a> <button class="btn s d" data-dell="${i}">Remove</button></div>`).join(''):'<p class="muted">No leads saved. Use the Find leads tab.</p>'}
+$('#p-evidence').onclick=e=>{const d=e.target.dataset;if(d.delf!=null){S.files.splice(d.delf,1)}else if(d.dell!=null){S.leads.splice(d.dell,1)}else return;save();renderEv()};
+
+// claim chart
+const newLim=()=>({claim_number:'1',claim_text:'',element_text:'',status:'unreviewed',evidence:[]});
+const newEv=()=>({source_title:'',source_url:'',publication_date:'',page_or_paragraph:'',verbatim_excerpt:'',relevance_rationale:'',file_id:'',verified_by_human:false});
+function renderChart(){$('#pat').value=S.patent;if(!S.lims.length)S.lims.push(newLim());
+ $('#cbox').innerHTML=S.lims.map((l,i)=>`<div class="card lim"><div class="row"><div><label>Limitation ID</label><input value="L${i+1}" disabled></div><div><label>Claim number</label><input data-l="${i}" data-f="claim_number" value="${esc(l.claim_number)}"></div>
+ <div><label>Status</label><select data-l="${i}" data-f="status">${['unreviewed','supported','not found'].map(s=>`<option${s===l.status?' selected':''}>${s}</option>`).join('')}</select></div></div>
+ <label>Claim text (verbatim)</label><textarea data-l="${i}" data-f="claim_text">${esc(l.claim_text)}</textarea>
+ <label style="margin-top:8px">This limitation only</label><textarea data-l="${i}" data-f="element_text">${esc(l.element_text)}</textarea>
+ ${l.evidence.map((v,j)=>`<div class="ev${v.verified_by_human?' v':''}"><div class="row">
+  <div><label>Source title</label><input data-l="${i}" data-e="${j}" data-f="source_title" value="${esc(v.source_title)}"></div>
+  <div><label>URL or DOI</label><input data-l="${i}" data-e="${j}" data-f="source_url" value="${esc(v.source_url)}"></div>
+  <div><label>Publication date</label><input type="date" data-l="${i}" data-e="${j}" data-f="publication_date" value="${esc(v.publication_date)}"></div>
+  <div><label>Page / paragraph / figure</label><input data-l="${i}" data-e="${j}" data-f="page_or_paragraph" value="${esc(v.page_or_paragraph)}"></div>
+  <div><label>Registered file</label><select data-l="${i}" data-e="${j}" data-f="file_id"><option value="">None</option>${S.files.map(f=>`<option value="${f.id}"${f.id===v.file_id?' selected':''}>${esc(f.name)}</option>`).join('')}</select></div></div>
+  <label>Exact passage copied from the source</label><textarea data-l="${i}" data-e="${j}" data-f="verbatim_excerpt">${esc(v.verbatim_excerpt)}</textarea>
+  <label style="margin-top:8px">Why it matches (your words)</label><textarea data-l="${i}" data-e="${j}" data-f="relevance_rationale">${esc(v.relevance_rationale)}</textarea>
+  <p style="margin:10px 0 0"><label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" style="width:auto" data-l="${i}" data-e="${j}" data-f="verified_by_human"${v.verified_by_human?' checked':''}> I checked this passage against the source</label> <button class="btn s d" data-act="delEv" data-l="${i}" data-e="${j}">Remove evidence</button></p></div>`).join('')}
+ <p style="margin:12px 0 0"><button class="btn s" data-act="addEv" data-l="${i}">Add evidence</button> <button class="btn s d" data-act="delLim" data-l="${i}">Remove limitation</button></p></div>`).join('')}
+$('#pat').oninput=e=>{S.patent=e.target.value;save()};
+$('#p-chart').oninput=$('#p-chart').onchange=e=>{const d=e.target.dataset;if(d.f==null)return;const l=S.lims[d.l];
+ if(d.e==null){l[d.f]=e.target.value}else{const v=l.evidence[d.e];
+  if(d.f==='verified_by_human'){if(e.target.checked&&!(v.page_or_paragraph.trim()&&v.verbatim_excerpt.trim()&&v.source_title.trim())){e.target.checked=false;msg('Add the source title, page or paragraph, and exact passage before marking evidence as verified.');return}v.verified_by_human=e.target.checked;msg('');save();renderChart();return}
+  v[d.f]=e.target.value;if(v.verified_by_human&&['page_or_paragraph','verbatim_excerpt','source_title'].includes(d.f)&&!e.target.value.trim()){v.verified_by_human=false;save();renderChart();msg('Verification cleared because a required field was emptied.');return}}save()};
+$('#p-chart').onclick=e=>{const d=e.target.dataset;if(!d.act)return;msg('');
+ if(d.act==='addLim')S.lims.push(newLim());else if(d.act==='delLim'&&confirm('Remove this limitation and its evidence?'))S.lims.splice(d.l,1);else if(d.act==='addEv')S.lims[d.l].evidence.push(newEv());else if(d.act==='delEv')S.lims[d.l].evidence.splice(d.e,1);save();renderChart()};
+
+// export
+const ledger=()=>({exported_at:new Date().toISOString(),disclaimer:'Research aid only. Human review and qualified patent counsel are required.',patent_identifier:S.patent,evidence_ledger:S.files,leads:S.leads,claim_chart:S.lims.map((l,i)=>({limitation_id:'L'+(i+1),...l}))});
+function renderX(){$('#xout').value=JSON.stringify(ledger(),null,2)}
+$('#dl').onclick=()=>{renderX();const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('#xout').value],{type:'application/json'}));a.download='evidence-and-claim-chart.json';a.click()};
+$('#cp').onclick=async()=>{renderX();try{await navigator.clipboard.writeText($('#xout').value);$('#cp').textContent='Copied'}catch(e){$('#xout').select()}};
+$('#clr').onclick=()=>{if(confirm('Delete all saved files, leads and charts from this browser?')){S={patent:'',files:[],leads:[],lims:[]};try{localStorage.removeItem(KEY)}catch(e){}renderX()}};
+</script>
+</body>
+</html>

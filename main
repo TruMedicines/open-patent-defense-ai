@@ -1,0 +1,353 @@
+import os, zipfile, textwrap, json, pathlib, shutil
+root = "/mnt/data/open-patent-defense-ai"
+if os.path.exists(root):
+    shutil.rmtree(root)
+os.makedirs(root + "/src/patent_defense", exist_ok=True)
+os.makedirs(root + "/tests", exist_ok=True)
+content = {
+"README.md": """# Open Patent Defense AI
+
+Open-source, local-first tooling to help researchers organize prior art and build auditable patent-claim evidence maps.
+
+**Status:** early MVP. This is research software, not legal advice or an automated determination of patent validity.
+
+## Current capabilities
+- Search Crossref metadata for scholarly publications using a technical query.
+- Register local evidence files with SHA-256 hashes and provenance metadata.
+- Verify whether registered files have changed or disappeared.
+- Create a claim-chart JSON template that keeps each claim limitation separate and requires source/page/passage references for human review.
+- Export the evidence ledger to JSON.
+
+## Quick start
+
+Requires Python 3.10+.
+
+```bash
+python -m venv .venv
+# Windows: .venv\\Scripts\\activate
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -e ".[dev]"
+opda --help
+```
+
+### Search scholarly metadata
+
+```bash
+opda search "controlled release drug delivery polymer" --rows 10
+```
+
+Search results are leads, not proof of prior art. Confirm the actual document, dates, family, and disclosure in the source itself.
+
+### Register a document
+
+```bash
+opda evidence add ./documents/paper.pdf \\
+  --source-url "https://doi.org/10.xxxx/example" \\
+  --published 2018-04-12 \\
+  --notes "Review disclosure relevant to limitation 1"
+opda evidence list
+opda evidence verify
+opda evidence export evidence-index.json
+```
+
+### Create a claim chart
+
+```bash
+opda chart init claim-chart.json --patent "US1234567B2"
+```
+
+Edit the generated JSON. For every limitation, record the evidence source and exact page/passage, or explicitly mark it as not found. Do not allow AI-generated text to masquerade as verified evidence.
+
+The evidence ledger defaults to `data/evidence.jsonl`. Set `PATENT_DEFENSE_LEDGER` to change it.
+
+## Roadmap
+1. **MVP — evidence + claim chart scaffolding** (included).
+2. Add official patent-office search connectors and patent-family deduplication.
+3. Extract PDF text with page-level citations and OCR fallback.
+4. Add a review UI for claim charts, conflicts, and reviewer notes.
+5. Add reproducible evidence bundles, signed manifests, and evaluation benchmarks.
+
+## Principles
+- Local-first storage by default.
+- Exact citations and source provenance over unsupported summaries.
+- Human review for relevance and legal interpretation.
+- Clear distinction between discovery leads and verified evidence.
+- Respect source terms, rate limits, privacy, and confidentiality.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+## License
+Apache-2.0. See `LICENSE`.
+""",
+"pyproject.toml": """[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-patent-defense-ai"
+version = "0.2.0"
+description = "Local-first open tools for patent prior-art research and evidence mapping"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = ["requests>=2.31"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+opda = "patent_defense.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+""",
+"src/patent_defense/__init__.py": '__version__ = "0.2.0"\\n',
+"src/patent_defense/ledger.py": """from __future__ import annotations
+import hashlib, json, os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+def default_ledger_path() -> Path:
+    return Path(os.environ.get("PATENT_DEFENSE_LEDGER", "data/evidence.jsonl"))
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+def read_entries(ledger: Path) -> list[dict[str, Any]]:
+    if not ledger.exists(): return []
+    entries = []
+    with ledger.open("r", encoding="utf-8") as stream:
+        for number, line in enumerate(stream, 1):
+            if line.strip():
+                try: entries.append(json.loads(line))
+                except json.JSONDecodeError as exc: raise ValueError(f"Invalid JSON at {ledger}:{number}") from exc
+    return entries
+
+def add_evidence(file_path: Path, ledger: Path | None = None, source_url: str | None = None,
+                 published: str | None = None, notes: str | None = None) -> dict[str, Any]:
+    file_path = file_path.expanduser().resolve()
+    if not file_path.is_file(): raise FileNotFoundError(f"Evidence file not found: {file_path}")
+    ledger = ledger or default_ledger_path()
+    entry = {
+        "id": "ev-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"),
+        "file_name": file_path.name, "file_path": str(file_path), "sha256": sha256_file(file_path),
+        "source_url": source_url, "published_date": published,
+        "collected_at": datetime.now(timezone.utc).isoformat(), "notes": notes,
+    }
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    with ledger.open("a", encoding="utf-8") as stream: stream.write(json.dumps(entry, ensure_ascii=False) + "\\\\n")
+    return entry
+
+def verify_entries(ledger: Path | None = None) -> list[dict[str, Any]]:
+    results = []
+    for entry in read_entries(ledger or default_ledger_path()):
+        path = Path(entry["file_path"])
+        current = sha256_file(path) if path.is_file() else None
+        results.append({"id": entry["id"], "file_path": str(path),
+                        "status": "missing" if current is None else ("ok" if current == entry["sha256"] else "changed"),
+                        "recorded_sha256": entry["sha256"], "current_sha256": current})
+    return results
+
+def export_entries(destination: Path, ledger: Path | None = None) -> int:
+    entries = read_entries(ledger or default_ledger_path())
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(entries, indent=2, ensure_ascii=False) + "\\\\n", encoding="utf-8")
+    return len(entries)
+""",
+"src/patent_defense/search.py": """from __future__ import annotations
+import requests
+
+CROSSREF_URL = "https://api.crossref.org/works"
+
+def search_crossref(query: str, rows: int = 10) -> list[dict]:
+    if not query.strip():
+        raise ValueError("Query must not be empty")
+    rows = max(1, min(int(rows), 100))
+    response = requests.get(
+        CROSSREF_URL,
+        params={"query.bibliographic": query, "rows": rows, "select": "DOI,title,author,published,created,URL,type,container-title"},
+        headers={"User-Agent": "OpenPatentDefenseAI/0.2 (open-source research tool)"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    items = response.json().get("message", {}).get("items", [])
+    results = []
+    for item in items:
+        title = (item.get("title") or [""])[0]
+        results.append({
+            "title": title,
+            "doi": item.get("DOI"),
+            "url": item.get("URL"),
+            "published": item.get("published", {}).get("date-parts", [[None]])[0],
+            "venue": (item.get("container-title") or [""])[0],
+            "type": item.get("type"),
+            "authors": [a.get("family", "") + (", " + a.get("given", "") if a.get("given") else "")
+                        for a in item.get("author", [])[:8]],
+        })
+    return results
+""",
+"src/patent_defense/chart.py": """from __future__ import annotations
+import json
+from pathlib import Path
+from datetime import date
+
+def create_chart(destination: Path, patent: str) -> None:
+    chart = {
+        "schema_version": "1.0",
+        "created_date": date.today().isoformat(),
+        "patent_identifier": patent,
+        "review_status": "draft",
+        "disclaimer": "Research aid only. Human review and qualified patent counsel are required.",
+        "limitations": [
+            {
+                "limitation_id": "L1",
+                "claim_number": "1",
+                "claim_text": "Replace with verbatim claim text.",
+                "element_text": "Replace with one limitation/element.",
+                "evidence": [],
+                "analysis": "",
+                "reviewer_notes": "",
+                "status": "unreviewed"
+            }
+        ],
+        "evidence_item_schema": {
+            "source_title": "Exact document title",
+            "source_url": "Stable source URL or DOI",
+            "publication_date": "YYYY-MM-DD or null",
+            "document_version": "Version/patent publication number",
+            "page_or_paragraph": "Exact page, paragraph, column/line, or figure",
+            "verbatim_excerpt": "Short exact passage copied from the source",
+            "relevance_rationale": "Human-authored explanation of what the passage supports",
+            "verified_by_human": False
+        }
+    }
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(chart, indent=2, ensure_ascii=False) + "\\\\n", encoding="utf-8")
+"""
+}
+for rel, txt in content.items():
+    p = os.path.join(root, rel); os.makedirs(os.path.dirname(p), exist_ok=True)
+    open(p, "w", encoding="utf-8").write(txt)
+
+cli = """from __future__ import annotations
+import argparse, json
+from pathlib import Path
+from patent_defense.ledger import add_evidence, default_ledger_path, export_entries, read_entries, verify_entries
+from patent_defense.search import search_crossref
+from patent_defense.chart import create_chart
+
+def main():
+    parser = argparse.ArgumentParser(prog="opda", description="Open Patent Defense AI research tools")
+    parser.add_argument("--ledger", type=Path, default=None)
+    sub = parser.add_subparsers(dest="command", required=True)
+    search = sub.add_parser("search", help="Search scholarly publication metadata via Crossref")
+    search.add_argument("query"); search.add_argument("--rows", type=int, default=10)
+    ev = sub.add_parser("evidence", help="Manage local evidence files")
+    evsub = ev.add_subparsers(dest="evidence_command", required=True)
+    add = evsub.add_parser("add"); add.add_argument("path", type=Path); add.add_argument("--source-url")
+    add.add_argument("--published"); add.add_argument("--notes")
+    evsub.add_parser("list"); evsub.add_parser("verify")
+    exp = evsub.add_parser("export"); exp.add_argument("destination", type=Path)
+    chart = sub.add_parser("chart", help="Claim-chart utilities")
+    charts = chart.add_subparsers(dest="chart_command", required=True)
+    init = charts.add_parser("init"); init.add_argument("destination", type=Path); init.add_argument("--patent", required=True)
+    args = parser.parse_args(); ledger = args.ledger or default_ledger_path()
+    if args.command == "search":
+        try:
+            results = search_crossref(args.query, args.rows)
+            for i, item in enumerate(results, 1):
+                print(f"{i}. {item['title'] or '(untitled)'}")
+                print(f"   Published: {item['published'] or 'unknown'} | DOI: {item['doi'] or 'none'}")
+                print(f"   URL: {item['url'] or 'none'}")
+            print(f"\\\\n{len(results)} metadata results. Verify each original source before relying on it.")
+        except Exception as exc:
+            raise SystemExit(f"Search failed: {exc}")
+    elif args.command == "evidence":
+        if args.evidence_command == "add":
+            print(json.dumps(add_evidence(args.path, ledger, args.source_url, args.published, args.notes), indent=2))
+        elif args.evidence_command == "list":
+            entries = read_entries(ledger)
+            if not entries: print("No evidence registered yet.")
+            for e in entries: print(f"{e['id']}  {e['file_name']}  sha256={e['sha256']}  source={e.get('source_url') or '-'}")
+        elif args.evidence_command == "verify":
+            results = verify_entries(ledger)
+            if not results: print("No evidence registered yet.")
+            for r in results: print(f"{r['status'].upper():7} {r['id']} {r['file_path']}")
+            if any(r["status"] != "ok" for r in results): raise SystemExit(1)
+        elif args.evidence_command == "export":
+            print(f"Exported {export_entries(args.destination, ledger)} entries to {args.destination}")
+    elif args.command == "chart":
+        create_chart(args.destination, args.patent)
+        print(f"Created claim chart template: {args.destination}")
+
+if __name__ == "__main__": main()
+"""
+open(root + "/src/patent_defense/cli.py", "w", encoding="utf-8").write(cli)
+tests = """import json
+from pathlib import Path
+from patent_defense.ledger import add_evidence, verify_entries, export_entries
+from patent_defense.chart import create_chart
+
+def test_evidence_hash_detects_change(tmp_path: Path):
+    file = tmp_path / "ref.txt"; file.write_text("original")
+    ledger = tmp_path / "ledger.jsonl"
+    add_evidence(file, ledger)
+    assert verify_entries(ledger)[0]["status"] == "ok"
+    file.write_text("changed")
+    assert verify_entries(ledger)[0]["status"] == "changed"
+
+def test_missing_evidence_detected(tmp_path: Path):
+    file = tmp_path / "ref.txt"; file.write_text("original")
+    ledger = tmp_path / "ledger.jsonl"; add_evidence(file, ledger); file.unlink()
+    assert verify_entries(ledger)[0]["status"] == "missing"
+
+def test_export_and_claim_chart(tmp_path: Path):
+    file = tmp_path / "ref.txt"; file.write_text("source")
+    ledger = tmp_path / "ledger.jsonl"; add_evidence(file, ledger)
+    out = tmp_path / "export.json"
+    assert export_entries(out, ledger) == 1
+    assert json.loads(out.read_text())[0]["file_name"] == "ref.txt"
+    chart = tmp_path / "chart.json"; create_chart(chart, "US1234567B2")
+    assert json.loads(chart.read_text())["patent_identifier"] == "US1234567B2"
+"""
+open(root + "/tests/test_core.py", "w", encoding="utf-8").write(tests)
+open(root + "/.gitignore", "w", encoding="utf-8").write(".venv/\\n__pycache__/\\n.pytest_cache/\\n*.py[cod]\\ndata/\\n*.egg-info/\\n")
+open(root + "/LICENSE", "w", encoding="utf-8").write("""Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+Copyright 2026 Open Patent Defense AI contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+""")
+zip_path = "/mnt/data/open-patent-defense-ai-v0.2.zip"
+with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+    for dp, _, names in os.walk(root):
+        for name in names:
+            fp = os.path.join(dp, name)
+            z.write(fp, os.path.relpath(fp, "/mnt/data"))
+print("Created", zip_path)

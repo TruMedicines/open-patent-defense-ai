@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Patent Defense AI: auditable prior-art evidence, kept on your machine</title>
+<meta name="description" content="Open-source, local-first tools that hash your prior-art files, keep every claim limitation separate, and require a human-verified citation for each piece of evidence.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>§</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F6F8; --card:#FFFFFF; --ink:#16202B; --muted:#55616F; --rule:#CBD3DC;
+  --verified:#0B6B4F; --verified-bg:#E1F2EB; --open:#9A5B00; --open-bg:#FBEBCF; --link:#1F3FBF;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--paper:#10161D;--card:#18212B;--ink:#E8EDF2;--muted:#98A5B3;--rule:#2C3947;
+    --verified:#5FD0A6;--verified-bg:#12372B;--open:#F0B35A;--open-bg:#3A2A10;--link:#8FA6FF}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 1.0625rem/1.65 var(--serif);-webkit-font-smoothing:antialiased}
+a{color:var(--link);text-underline-offset:3px}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--link);outline-offset:3px;border-radius:2px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+header.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 0;font:500 .95rem var(--sans)}
+header.top .name{font-weight:600;color:var(--ink);text-decoration:none}
+header.top nav{display:flex;gap:22px}
+header.top nav a{color:var(--muted);text-decoration:none}
+header.top nav a:hover{color:var(--ink)}
+h1{font:600 clamp(2.1rem,5vw,3.4rem)/1.08 var(--serif);letter-spacing:-.015em;margin:0 0 20px;max-width:18ch}
+h2{font:600 1.75rem/1.2 var(--serif);margin:0 0 12px;letter-spacing:-.01em}
+h3{font:600 1.05rem/1.3 var(--sans);margin:0 0 6px}
+p{margin:0 0 1em;max-width:62ch}
+.lede{font-size:1.25rem;color:var(--muted);max-width:52ch}
+.hero{padding:40px 0 56px;display:grid;grid-template-columns:minmax(0,1fr);gap:36px}
+@media(min-width:900px){.hero{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:center}}
+.btns{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px;font-family:var(--sans)}
+.btn{display:inline-block;padding:11px 18px;border-radius:6px;font-weight:600;font-size:.95rem;text-decoration:none;border:1.5px solid var(--ink)}
+.btn.primary{background:var(--ink);color:var(--paper)}
+.btn.ghost{color:var(--ink)}
+.btn:hover{opacity:.88}
+
+/* the chart: the one memorable element */
+.chart{background:var(--card);border:1.5px solid var(--ink);border-radius:4px;font-family:var(--sans);overflow:hidden}
+.chart-head{display:flex;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1.5px solid var(--ink);font-size:.82rem;color:var(--muted)}
+.chart-head b{color:var(--ink);font-family:var(--mono);font-weight:500}
+.lim{padding:16px;border-bottom:1px solid var(--rule)}
+.lim:last-of-type{border-bottom:0}
+.lim .claim{font:400 .98rem/1.5 var(--serif);margin:0 0 10px}
+.lim .claim span{font:500 .8rem var(--mono);color:var(--muted);margin-right:8px}
+.ev{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.85rem;padding:10px 12px;border-radius:4px;background:var(--paper);border-left:4px solid var(--rule)}
+.ev dt{color:var(--muted)} .ev dd{margin:0;overflow-wrap:anywhere}
+.ev code{font:400 .8rem var(--mono)}
+.ev.ok{border-left-color:var(--verified)} .ev.none{border-left-color:var(--open)}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font:600 .75rem var(--sans)}
+.tag.ok{background:var(--verified-bg);color:var(--verified)} .tag.open{background:var(--open-bg);color:var(--open)}
+
+section{padding:56px 0;border-top:1px solid var(--rule)}
+.cols{display:grid;gap:28px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:800px){.cols.two{grid-template-columns:repeat(2,minmax(0,1fr))}.cols.three{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.cols p{font-size:1rem;color:var(--muted)}
+.split{display:grid;gap:12px 40px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:800px){.split{grid-template-columns:minmax(0,4fr) minmax(0,7fr)}}
+pre{margin:0;background:#0F1720;color:#DCE6F0;border-radius:6px;padding:18px 20px;overflow-x:auto;font:400 .86rem/1.7 var(--mono)}
+pre .c{color:#7E91A6}
+pre .p{color:#7BD3B0;user-select:none}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:22px}
+.steps li{padding-left:18px;border-left:3px solid var(--ink)}
+.steps li p{color:var(--muted);font-size:1rem;margin:0}
+.road{list-style:none;margin:0;padding:0;max-width:62ch}
+.road li{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--rule);font-size:1rem}
+.road li:last-child{border-bottom:0}
+.road .s{font:600 .8rem var(--sans);padding-top:3px}
+.road .done{color:var(--verified)} .road .next{color:var(--muted)}
+.notice{background:var(--open-bg);color:var(--ink);border-left:4px solid var(--open);padding:16px 20px;border-radius:4px;font-family:var(--sans);font-size:.95rem;max-width:72ch}
+footer{padding:32px 0 56px;border-top:1px solid var(--rule);color:var(--muted);font:400 .9rem var(--sans)}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <a class="name" href="#">Open Patent Defense AI</a>
+  <nav aria-label="Primary">
+    <a href="#how">How it works</a>
+    <a href="#start">Quick start</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="https://github.com/YOUR-USERNAME/open-patent-defense-ai">GitHub</a>
+  </nav>
+</header>
+
+<main>
+<div class="hero">
+  <div>
+    <h1>Prior-art evidence you can audit line by line.</h1>
+    <p class="lede">Open-source tools that hash your reference files, keep each patent claim limitation separate, and refuse to count a citation until a person has checked it. Everything stays on your machine.</p>
+    <div class="btns">
+      <a class="btn primary" href="#start">Install and run</a>
+      <a class="btn ghost" href="https://github.com/YOUR-USERNAME/open-patent-defense-ai">View the source</a>
+    </div>
+  </div>
+
+  <figure class="chart" style="margin:0" aria-label="Example claim chart with one verified and one unsupported limitation">
+    <div class="chart-head"><span>Claim chart · <b>US1234567B2</b></span><span>draft, human review required</span></div>
+    <div class="lim">
+      <p class="claim"><span>L1</span>a polymer matrix configured to release an active agent over at least 12 hours</p>
+      <dl class="ev ok" style="margin:0">
+        <dt>Source</dt><dd>Smith et al., J. Controlled Release (2018)</dd>
+        <dt>Location</dt><dd>p. 4, ¶2</dd>
+        <dt>File hash</dt><dd><code>sha256 9f2c…e41a</code> <span class="tag ok">unchanged</span></dd>
+        <dt>Reviewer</dt><dd>Verified by human</dd>
+      </dl>
+    </div>
+    <div class="lim">
+      <p class="claim"><span>L2</span>wherein the matrix comprises a biodegradable copolymer</p>
+      <dl class="ev none" style="margin:0">
+        <dt>Source</dt><dd>None recorded</dd>
+        <dt>Status</dt><dd><span class="tag open">not found</span> Marked by reviewer, not guessed.</dd>
+      </dl>
+    </div>
+  </figure>
+</div>
+
+<section id="how">
+  <div class="split">
+    <h2>A search result is a lead. A citation is evidence.</h2>
+    <div>
+      <p>Most research tools blur the two. This one keeps them in separate places, so a summary written by a model can never be mistaken for a passage somebody actually read in the source.</p>
+    </div>
+  </div>
+  <div class="cols three" style="margin-top:28px">
+    <div><h3>Find leads</h3><p>Search Crossref for scholarly publications from the command line. Results are metadata only, and each one needs checking against the original document.</p></div>
+    <div><h3>Lock the evidence</h3><p>Register a file and the ledger records its SHA-256 hash, source URL, publication date, and your notes. Verify later and any changed or missing file is flagged.</p></div>
+    <div><h3>Chart each limitation</h3><p>Generate a claim chart where every limitation has its own evidence list, with exact page or paragraph, a verbatim excerpt, and a human-verified flag.</p></div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="split">
+    <div>
+      <h2>Quick start</h2>
+      <p>Needs Python 3.10 or newer. The ledger is a plain JSONL file you can read, diff, and commit to your own repository.</p>
+    </div>
+    <ol class="steps">
+      <li><h3>Install</h3>
+<pre><span class="p">$ </span>git clone https://github.com/YOUR-USERNAME/open-patent-defense-ai
+<span class="p">$ </span>cd open-patent-defense-ai
+<span class="p">$ </span>python -m pip install -e ".[dev]"</pre></li>
+      <li><h3>Search for leads</h3>
+<pre><span class="p">$ </span>opda search "controlled release drug delivery polymer" --rows 10</pre></li>
+      <li><h3>Register a document</h3>
+<pre><span class="p">$ </span>opda evidence add ./documents/paper.pdf \
+    --source-url "https://doi.org/10.xxxx/example" \
+    --published 2018-04-12
+<span class="p">$ </span>opda evidence verify   <span class="c"># exits 1 if anything changed</span></pre></li>
+      <li><h3>Start a claim chart</h3>
+<pre><span class="p">$ </span>opda chart init claim-chart.json --patent "US1234567B2"</pre></li>
+    </ol>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="split">
+    <h2>Where it is going</h2>
+    <ol class="road">
+      <li><span class="s done">Included</span><span>Evidence ledger, hash verification, claim-chart template, Crossref search</span></li>
+      <li><span class="s next">Planned</span><span>Patent-office search connectors and family deduplication</span></li>
+      <li><span class="s next">Planned</span><span>PDF text extraction with page-level citations and OCR fallback</span></li>
+      <li><span class="s next">Planned</span><span>Review interface for charts, conflicts, and reviewer notes</span></li>
+      <li><span class="s next">Planned</span><span>Signed evidence bundles and evaluation benchmarks</span></li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <p class="notice"><strong>This is research software, not legal advice.</strong> It does not decide whether a patent is valid. Relevance and legal interpretation need a qualified person, and patent counsel should review anything you intend to rely on.</p>
+</section>
+</main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache-2.0 licensed. Contributions welcome.</span>
+    <span><a href="https://github.com/YOUR-USERNAME/open-patent-defense-ai/blob/main/CONTRIBUTING.md">Contribute</a></span>
+  </div>
+</footer>
+</body>
+</html>

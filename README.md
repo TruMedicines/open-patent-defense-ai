@@ -4,7 +4,7 @@ Open-source, local-first tooling to help researchers organize prior art and buil
 
 **Status:** early MVP. This is research software, not legal advice or an automated determination of patent validity.
 
-Website: `https://<your-username>.github.io/open-patent-defense-ai/`
+**Use it as a webpage:** open `docs/index.html` in a browser, or visit `https://<your-username>.github.io/open-patent-defense-ai/` once GitHub Pages is on. The page runs entirely in your browser (file hashing, claim charts, export); only the Crossref search contacts a server. The Python command-line tool below does the same jobs for people who prefer a terminal.
 
 ## Current capabilities
 - Search Crossref metadata for scholarly publications using a technical query.
